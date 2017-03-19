@@ -1,0 +1,360 @@
+---
+title: "HR analitycs"
+author: "Gabor Gehl"
+date: "februar 26, 2017"
+output: html_document
+---
+
+### Content
+
+This document contains a short analysis of a HR dataset from KAGGLE. The main content of the dokument
+
+* Understand the business value of the data - quick data review
+* Some exploratory data analysis on the available variable
+* Model predictions -  Answare the questions - Who will leave next? How to keep valuable employees?
+* Conclusions
+
+### Understand the business value of the data - quick data review 
+
+
+---
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(stargazer)
+library(ggplot2)
+library(gridExtra)  # to combine graphs
+library(plm)# for panels
+library(plotly)
+library(rpart)
+library(formattable)
+library(DT)
+```
+
+
+The first look at the data and a quick check of all columns. 
+Minimum and maximum values, means and medians.
+<br/>
+<br/>
+The table contains the basic statistical information of each feature.
+We can see that people working on 3-4 project and have around 200 hours working houtrs by month on average.
+<br/>
+<br/>
+The minimum time spent on the company is 2 years, the maximum is around 10 years and the average is about 3.5 years.
+<br/>
+<br/>
+The salaries are in three categories. Low, medium and high.
+<br/>
+<br/>
+Employees who left the company is marked with '1'. With this label we can make a separate group of them. We can analyse this group and compare them to the whole group.
+<br/>
+<br/>
+
+### Data summary
+
+
+---
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+setwd("C:\\Users\\Géhl Gábor\\Documents\\Text\\G\\Study\\CEU Study\\2016-2017\\DA for Business\\Homework\\HR Analytics")
+getwd()
+
+hr <- read_csv('HR_comma_sep.csv')
+
+summary(hr)
+```
+<br/>
+
+
+### Data sample
+
+
+
+The table bellow contains a sample of the whole dataset. We can pick up couple lines and take a look at them.
+<br/>
+<br/>
+<br/>
+<br/>
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+hr %>% 
+  head(2e2) %>% 
+  formattable() %>% 
+  as.datatable
+```
+
+<br/>
+<br/>
+
+### Data visualization - charts
+
+
+
+Let's visualize the two group together to see whether we can find any specific characteristics in each group.
+<br/>
+
+We will follow the features listed in the table above.
+<br/>
+<br/>
+<br/>
+
+
+#### Satisfaction level and evaluation
+
+We can see clear defferences between the two groups. 
+Regarding satisfaction level we can distinguish 3 group among employees who left the company. Interesting that beside unsatisfied employees many people left the company who had higher satisfaction level.
+<br/>
+<br/>
+There is big difference in evaluation among the two groups as well. Both low and highly evaluated employee left the company. Certinly, the HR Department focuses  on those people who gained high evaluation.
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12}
+
+hr$salary <- as.factor(hr$salary)
+#hr$promotion_last_5years <- as.factor(hr$promotion_last_5years)
+hr_left <- hr %>% filter(left==1)
+#hr <- hr %>% filter(left==0)
+hr_150 <- hr %>% filter(average_montly_hours<150)
+hr_left <- hr %>% filter(left==1)
+hr_left_150 <- hr %>% filter(left==1 & average_montly_hours<150)
+
+
+par(mfrow=c(2,2))
+
+hist(hr$satisfaction_level,col="green", xlab='Satisfaction level', main = "Satisfaction level - ALL") 
+hist(hr_left$satisfaction_level,col="red", xlab='Satisfaction level', main = "Satisfaction level - LEFT") 
+
+hist(hr$last_evaluation,col="green", xlab='Evaluation', main = "Last evaluation - ALL")
+hist(hr_left$last_evaluation,col="red", xlab='Evaluation', main = "Last evaluation - LEFT")
+```
+
+<br/>
+<br/>
+
+#### Average monthly working hours and number of projects
+
+There is difference in the two group in these features as well. Those who leave work less than the average or work more than the average. 
+
+Let's see these in numbers.
+<br/>
+<br/>
+The total number of employees in the dataset: **`r nrow(hr)`**
+<br/>
+The number of employees who left: **`r nrow(hr_left)`**
+<br/>
+The number of employees who work less than 150 hours: **`r nrow(hr_150)`**
+<br/>
+The number of employees who work less than 150 hours and left the company: **`r nrow(hr_left_150)`**
+<br/>
+
+This means that
+
+* about one third of those who worked less than 150 hours per month left the company later,
+* about one third of the leaving employees worked less than 150 hours. 
+
+<br/>
+<br/>
+Most of the employees who left the company had worked on 2 projects, which is bellow the average. 
+<br/>
+<br/>
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12}
+
+par(mfrow=c(2,2))
+
+hist(hr$average_montly_hours,col="green", xlab='Average hours per month', main = "Average montly hours - ALL")
+hist(hr_left$average_montly_hours,col="red", xlab='Average hours per month', main = "Average montly hours - LEFT")
+
+hist(hr$number_project, col="green", xlab='Number of project', main = "Number of project")
+hist(hr_left$number_project, col="red", xlab='Number of project', main = "Number of project")
+```
+
+<br/>
+<br/>
+
+#### Time spent at the company, Promotion, Salary
+
+
+<br/>
+The average time spent at the company is **`r mean(hr$time_spend_company, digits=2)`**. This average value in the leaving group is **`r mean(hr_left$time_spend_company)`** The two numbers are fairly close to each other.
+<br/>
+<br/>
+Promotion also shows similarites.
+<br/>
+<br/>
+Regarding salary we can observe that in low and medium category people are more likely to leave than in high salary category.
+
+<br/>
+<br/>
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12}
+
+par(mfrow=c(2,2))
+
+hist(hr$time_spend_company, col="green", xlab='Years spent company', main = "Time spent on the company - ALL")
+hist(hr_left$time_spend_company, col="red", xlab='Years spent company', main = "Time spent on the company - LEFT")
+
+hist(hr$promotion_last_5years, col="green", xlab='Promotion', main = "Promotion in the last 5 years - ALL")
+hist(hr_left$promotion_last_5years, col="red", xlab='Promotion', main = "Promotion in the last 5 years - LEFT")
+
+plot(hr$salary,col="green", xlab='Salary category', main = "Salary - ALL")
+plot(hr_left$salary,col="red", xlab='Salary category', main = "Salary - LEFT")
+
+```
+
+## Model predictions
+
+In predictive modeling I chose
+
+* Decision tree,
+* GBM
+* Random Forest
+
+
+I split the dataset into 2 parts and I make a training set and test set. The ratio of training and test set is 60-40%.
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE}
+library(AUC)
+library(pROC)
+
+# Split dataset, making factors
+
+set.seed(123)
+N <- nrow(hr)
+idx <- sample(1:N, 0.6*N)
+
+hr %>% 
+  mutate(
+    left = factor(left, labels = c("Remain", "Left")),
+    salary = ordered(salary, c("low", "medium", "high"))
+   ) -> d
+
+d_train <- d[idx,]
+d_test <- d[-idx,]
+```
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+library(rpart)
+library(AUC)
+library(pROC)
+library(rpart.plot)
+
+
+set.seed(123)
+
+md <- rpart(left ~ ., data = d_train)
+yhat <- predict(md, d_test)
+auc <- auc(as.numeric(d_test$left) - 1, yhat[, 2])
+#auc
+#plot(md, uniform = TRUE, compress = TRUE)
+#text(md, use.n = TRUE, cex = 0.7)
+
+#table(ifelse(res>0,1,0), d_test$left)
+```
+
+The AUC (Area Under the Curve) is **`r auc`**, which seems to be rather good. Perhaps too good.
+
+Let's see which are the main driving factors in leaving the company, take a look at the decision tree.
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+rpart.plot(md, type = 2, fallen.leaves = F, cex = 1, extra = 2)
+
+#plot(md, uniform = TRUE, compress = TRUE)
+#text(md, use.n = TRUE, cex = 0.7)
+
+```
+
+Let's see the GBM with a confusion matrix. It seems that the confusion matrix gives relative good resuls.
+<br/>
+<br/>
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+library(gbm)
+library(xgboost)
+library(pander)
+
+
+# hr1: working dataset
+hr1 <- hr
+
+hr1$number_project <- as.numeric(hr1$number_project)
+hr1$average_montly_hours <- as.numeric(hr1$average_montly_hours)
+hr1$time_spend_company <- as.numeric(hr1$time_spend_company)
+hr1$Work_accident <- as.numeric(hr1$Work_accident)
+hr1$left <- as.numeric(hr1$left)
+hr1$promotion_last_5years <- as.numeric(hr1$promotion_last_5years)
+hr1$sales <- as.factor(hr$sales)
+hr1$sales <- as.numeric(hr1$sales)
+
+hr1$salary <- as.factor(hr$salary)
+hr1$salary <- as.numeric(hr1$salary)
+
+d <- hr1
+
+set.seed(123)
+N <- nrow(d)
+idx <- sample(1:N, 0.6*N)
+
+
+d_train <- d[idx,]
+d_test <- d[-idx,]
+
+set.seed(123)
+
+md <- gbm(left ~ ., data = d_train, distribution = "bernoulli",
+          n.trees = 100, interaction.depth = 10, shrinkage = 0.01)
+
+yhat <- predict(md, d_test, n.trees = 100) 
+
+pander(table(ifelse(yhat>0,1,0), d_test$left))
+
+
+```
+
+Random Forest gives even better results. The confusion matrix is bellow
+<br/>
+<br/>
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+
+# Some data manipulation
+
+library(randomForest)
+library(caret)
+
+h1 <- read.table('HR_comma_sep.csv', header=TRUE, sep = ',')
+
+
+hr1$number_project <- as.numeric(hr1$number_project)
+hr1$average_montly_hours <- as.numeric(hr1$average_montly_hours)
+hr1$time_spend_company <- as.numeric(hr1$time_spend_company)
+hr1$Work_accident <- as.numeric(hr1$Work_accident)
+hr1$left <- as.numeric(hr1$left)
+hr1$promotion_last_5years <- as.numeric(hr1$promotion_last_5years)
+hr1$sales <- as.factor(hr$sales)
+hr1$sales <- as.numeric(hr1$sales)
+
+hr1$salary <- as.factor(hr$salary)
+hr1$salary <- as.numeric(hr1$salary)
+
+# Split training/test set.
+
+d <- hr1
+train <- d[0:round((dim(d)[1])*0.6),]
+test <- d[(round((dim(d)[1])*0.6)+1):(dim(d)[1]),]
+
+set.seed(123)
+
+#dim(d_train)
+#dim(d_test)
+
+#Training
+md <- randomForest(left ~ ., data = d_train, ntree = 100)
+#md
+#plot(md)
+
+
+phat <- predict(md, d_test[-7])
+pander(table(ifelse(phat>0.5,1,0), d_test$left))
+
+
+```
+
+
