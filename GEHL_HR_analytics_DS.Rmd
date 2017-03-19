@@ -11,8 +11,11 @@ This document contains a short analysis of a HR dataset from KAGGLE. The main co
 
 * Understand the business value of the data - quick data review
 * Some exploratory data analysis on the available variable
-* Model predictions -  Answare the questions - Who will leave next? How to keep valuable employees?
-* Conclusions
+* Model predictions
+* Diagnostics 
+
+The original URL of the public dataset is  https://www.kaggle.com/ludobenistant/hr-analytics .
+
 
 ### Understand the business value of the data - quick data review 
 
@@ -318,6 +321,7 @@ Random Forest gives even better results. The confusion matrix is bellow
 
 library(randomForest)
 library(caret)
+library(ROCR)
 
 h1 <- read.table('HR_comma_sep.csv', header=TRUE, sep = ',')
 
@@ -353,6 +357,48 @@ md <- randomForest(left ~ ., data = d_train, ntree = 100)
 
 phat <- predict(md, d_test[-7])
 pander(table(ifelse(phat>0.5,1,0), d_test$left))
+```
+
+Some diagnostics
+<br/>
+<br/>
+
+**Error Rate versus Cutoff**
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+
+# ROC curve
+
+rocr_obj <- prediction(phat, d_test$left)
+#class(rocr_obj)
+
+
+
+plot(performance(rocr_obj, "err"))            # err vs cutoff
+```
+
+**AUC value and ROC curve**
+
+The AUC is rather high.
+
+```{r, message=F, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 10, fig.height = 8}
+# ROC curve
+#plot(performance(rocr_obj, "tpr", "fpr"))     
+#plot(performance(rocr_obj, "tpr", "fpr"), 
+#     xlim = c(0,0.2), ylim = c(0.8,1))
+
+# AUC
+performance(rocr_obj, "auc")                 
+#performance(rocr_obj, "auc")@y.values[[1]]
+
+
+# ROC curve
+plot(performance(rocr_obj, "tpr", "fpr"), colorize=TRUE)     
+plot(performance(rocr_obj, "tpr", "fpr"), colorize=TRUE,
+     xlim = c(0,0.2), ylim = c(0.8,1))                      
+
+d_phat <- data.frame(phat, left = d_test$left)
+ggplot(d_phat) + geom_density(aes(x = phat, color = as.factor(left)))
 
 
 ```
